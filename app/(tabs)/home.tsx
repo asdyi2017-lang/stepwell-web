@@ -7,6 +7,9 @@ import { apiMe, BASE_URL, getHealthSnapshot, updateHealthSnapshot, apiAskAssista
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
+
 type Level = 'normal' | 'warning' | 'critical';
 type DeviceStatus = 'ok' | 'offline' | 'faulty';
 type Page = 'dashboard' | 'alerts' | 'devices' | 'statistics' | 'achievements' | 'doctor' | 'assistant' | 'profile';
@@ -101,7 +104,6 @@ export default function Home() {
 
   const currentRole = user?.role || 'patient';
 
-  // Load preferences and avatar from local storage on mount
   useEffect(() => {
     AsyncStorage.getItem('userPrefs').then(savedPrefs => {
       if (savedPrefs) setPrefs(JSON.parse(savedPrefs));
@@ -112,7 +114,6 @@ export default function Home() {
     load();
   }, []);
 
-  // Save preferences whenever they change
   useEffect(() => {
     AsyncStorage.setItem('userPrefs', JSON.stringify(prefs));
   }, [prefs]);
@@ -283,7 +284,7 @@ export default function Home() {
     return patients.find(p => p.id === selectedPatientId);
   }, [selectedPatientId, patients, currentRole]);
 
-  const downloadReport = () => {
+  const downloadReport = async () => {
     const targetUser = currentRole === 'doctor' ? selectedPatient : user;
 
     if (!snapshot || !targetUser) {
@@ -294,49 +295,148 @@ export default function Home() {
     const firstName = targetUser.first_name || targetUser.firstName || "Unknown";
     const lastName = targetUser.last_name || targetUser.lastName || "Patient";
     
-    const wVal = snapshot.weight.value;
-    const displayW = wVal ? (prefs.weight === 'imperial' ? (wVal * 2.20462).toFixed(1) + ' lbs' : wVal + ' kg') : '-';
+    const wVal = snapshot.weight?.value;
+    const displayW = wVal ? (prefs.weight === 'imperial' ? (wVal * 2.20462).toFixed(1) + ' lbs' : wVal + ' kg') : 'N/A';
+    
+    const hVal = snapshot.height?.value || targetUser.height;
+    const displayH = hVal ? (prefs.length === 'imperial' ? (hVal / 30.48).toFixed(1) + ' ft' : hVal + ' cm') : 'N/A';
 
-    const reportText = `
-STEPWELL MEDICAL REPORT
--------------------------
-Patient: ${firstName} ${lastName}
-Date: ${new Date().toLocaleString()}
+    const dob = targetUser.date_of_birth || targetUser.dob || (rawSnapshot && rawSnapshot.date_of_birth);
+    const displayDob = dob ? new Date(dob).toLocaleDateString() : 'Not specified';
 
-CURRENT METRICS:
-- Blood Pressure: ${snapshot.bp.sys}/${snapshot.bp.dia} mmHg (${snapshot.bp.status.toUpperCase()})
-- Blood Glucose: ${snapshot.glucose.value} mmol/L (${snapshot.glucose.status.toUpperCase()})
-- SpO2: ${snapshot.spo2.value}% (${snapshot.spo2.status.toUpperCase()})
-- Heart Rate: ${snapshot.hr.value} bpm (${snapshot.hr.status.toUpperCase()})
-- Weight: ${displayW} (BMI: ${snapshot.weight.bmi > 0 ? snapshot.weight.bmi : '-'})
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: 'Times New Roman', serif; padding: 40px; color: #000; background: #fff; }
+          .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; }
+          .logo { font-size: 28px; font-weight: bold; margin: 0; letter-spacing: 1px; color: #1E6F78; }
+          .sub { font-size: 14px; margin-top: 5px; color: #555; text-transform: uppercase; letter-spacing: 2px; }
+          .patient-info { width: 100%; margin-bottom: 30px; border-collapse: collapse; }
+          .patient-info td { padding: 8px 5px; font-size: 14px; border-bottom: 1px solid #ddd; }
+          .patient-info td:nth-child(odd) { font-weight: bold; width: 20%; color: #333; }
+          .section-title { font-size: 16px; font-weight: bold; background: #f0f4f5; color: #1E6F78; padding: 8px 10px; border: 1px solid #1E6F78; margin-bottom: 0; text-transform: uppercase; }
+          table.results { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+          table.results th, table.results td { border: 1px solid #1E6F78; padding: 10px; text-align: left; font-size: 14px; }
+          table.results th { background: #f9f9f9; color: #333; }
+          .status-normal { color: #2E7D32; font-weight: bold; }
+          .status-warning { color: #B26A00; font-weight: bold; }
+          .status-critical { color: #B00020; font-weight: bold; }
+          .footer { font-size: 11px; color: #777; margin-top: 40px; border-top: 1px solid #000; padding-top: 10px; text-align: justify; line-height: 1.5; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1 class="logo">STEPWELL MEDICAL SYSTEMS</h1>
+          <p class="sub">Official Patient Health Report</p>
+        </div>
+        
+        <table class="patient-info">
+          <tr>
+            <td>Patient Name:</td><td>${firstName} ${lastName}</td>
+            <td>Date of Birth:</td><td>${displayDob}</td>
+          </tr>
+          <tr>
+            <td>Height:</td><td>${displayH}</td>
+            <td>Weight:</td><td>${displayW}</td>
+          </tr>
+          <tr>
+            <td>Date of Report:</td><td>${new Date().toLocaleString()}</td>
+            <td>Attending Dr.:</td><td>${currentRole === 'doctor' ? user.first_name + ' ' + user.last_name : '-'}</td>
+          </tr>
+        </table>
 
-ACTIVITY:
-- Steps: ${snapshot.activity.steps}
-- Calories: ${snapshot.activity.calories} kcal
-- Streak: ${snapshot.activity.streak} days
+        <div class="section-title">BIOMARKER RESULTS</div>
+        <table class="results">
+          <tr>
+            <th>Test / Metric</th>
+            <th>Recorded Result</th>
+            <th>Status</th>
+            <th>Reference Range</th>
+          </tr>
+          <tr>
+            <td>Blood Pressure</td>
+            <td>${snapshot.bp.sys}/${snapshot.bp.dia} mmHg</td>
+            <td class="status-${snapshot.bp.status}">${snapshot.bp.status.toUpperCase()}</td>
+            <td>&lt; 120/80 mmHg</td>
+          </tr>
+          <tr>
+            <td>Blood Glucose</td>
+            <td>${snapshot.glucose.value} mmol/L</td>
+            <td class="status-${snapshot.glucose.status}">${snapshot.glucose.status.toUpperCase()}</td>
+            <td>4.0 - 5.9 mmol/L</td>
+          </tr>
+          <tr>
+            <td>Blood Oxygen (SpO₂)</td>
+            <td>${snapshot.spo2.value} %</td>
+            <td class="status-${snapshot.spo2.status}">${snapshot.spo2.status.toUpperCase()}</td>
+            <td>95 - 100 %</td>
+          </tr>
+          <tr>
+            <td>Resting Heart Rate</td>
+            <td>${snapshot.hr.value} bpm</td>
+            <td class="status-${snapshot.hr.status}">${snapshot.hr.status.toUpperCase()}</td>
+            <td>60 - 100 bpm</td>
+          </tr>
+        </table>
 
-ALERTS:
-${snapshot.alerts.length > 0 
-  ? snapshot.alerts.map((a: any) => `- [${a.level.toUpperCase()}] ${a.title}: ${a.text}`).join('\n')
-  : 'No active alerts.'
-}
--------------------------
-Generated by StepWell System
-    `.trim();
+        <div class="section-title">ACTIVITY & METABOLISM</div>
+        <table class="results">
+          <tr>
+            <th>Metric</th>
+            <th>Recorded Value</th>
+          </tr>
+          <tr>
+            <td>Daily Steps</td>
+            <td>${snapshot.activity.steps.toLocaleString()} steps</td>
+          </tr>
+          <tr>
+            <td>Calories Burned</td>
+            <td>${snapshot.activity.calories.toLocaleString()} kcal</td>
+          </tr>
+          <tr>
+            <td>Activity Streak</td>
+            <td>${snapshot.activity.streak} consecutive days</td>
+          </tr>
+        </table>
 
-    if (Platform.OS === 'web') {
-      const blob = new Blob([reportText], { type: 'text/plain;charset=utf-8;' });
-      const link = document.createElement('a');
-      const url = URL.createObjectURL(blob);
-      link.setAttribute('href', url);
-      link.setAttribute('download', `Patient_Report_${targetUser.id || 'export'}.txt`);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } else {
-      Alert.alert("Report Generated", "Data is ready. Mobile version requires a share module.");
-      console.log(reportText);
+        ${snapshot.alerts.length > 0 ? `
+        <div class="section-title" style="background: #ffe6e6; color: #b30000; border-color: #b30000;">SYSTEM ALERTS & NOTICES</div>
+        <table class="results" style="border-color: #b30000;">
+          ${snapshot.alerts.map((a:any) => `<tr><td style="color: #b30000;"><strong>[${a.level.toUpperCase()}] ${a.title}</strong>: ${a.text}</td></tr>`).join('')}
+        </table>
+        ` : ''}
+
+        <div class="footer">
+          <strong>Disclaimer:</strong> This clinical report is generated automatically based on synchronized device data and manual patient entries. It is intended strictly for informational and monitoring purposes and should not be considered a final medical diagnosis.
+        </div>
+      </body>
+      </html>
+    `;
+
+    try {
+      if (Platform.OS === 'web') {
+         const printWindow = window.open('', '_blank');
+         if (printWindow) {
+           printWindow.document.write(html);
+           printWindow.document.close();
+           printWindow.focus();
+           setTimeout(() => {
+             printWindow.print();
+             printWindow.close();
+           }, 250);
+         } else {
+           Alert.alert("Pop-up blocked", "Please allow pop-ups for this site to print the report.");
+         }
+      } else {
+         const { uri } = await Print.printToFileAsync({ html });
+         await Sharing.shareAsync(uri);
+      }
+    } catch (err) {
+      console.log("PDF Error:", err);
+      Alert.alert("Error", "Could not generate PDF");
     }
   };
 
@@ -429,6 +529,7 @@ Generated by StepWell System
       spo2: { ...spo2, status: spo2Status },
       hr: { ...hr, status: hrStatus },
       weight: { ...weight, status: weightStatus }, 
+      height: { value: hValue }, 
       activity,
       alerts,
       devices: [
