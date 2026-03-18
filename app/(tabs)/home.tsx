@@ -643,8 +643,9 @@ export default function Home() {
           <View style={styles.sidebar}>
             <View style={styles.brandContainer}>
               <Image 
-                source={require('../../assets/images/LogoStepWell.png')} 
-                style={styles.logoImage} 
+                source={require('../../assets/images/iconStepWell.png')} 
+                style={styles.logoImage}
+                resizeMode="contain" 
               />
               <View>
                 <Text style={styles.brand}>StepWell</Text>
