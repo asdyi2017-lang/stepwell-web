@@ -557,7 +557,7 @@ export default function Home() {
   const handleShareAchievement = async (title: string) => {
     try {
       await Share.share({
-        message: `I just unlocked the "${title}" achievement on StepWell! It's time to build a healthier lifestyle. Join me!`,
+        message: `I just unlocked the "${title}" achievement on StepWell! It's time to build a healthier lifestyle.👟\nJoin me and start your health journey:\nhttps://stepwell-web-beta.vercel.app`,
       });
     } catch (error) {
       console.log("Error sharing", error);
