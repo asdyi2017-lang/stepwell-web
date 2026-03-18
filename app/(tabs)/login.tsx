@@ -5,7 +5,6 @@ import {
   TextInput,
   Pressable,
   StyleSheet,
-  Alert,
   Platform,
 } from "react-native";
 import { router } from "expo-router";
@@ -17,15 +16,18 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  
+  const [errorMsg, setErrorMsg] = useState(""); 
 
   const onLogin = async () => {
     try {
       setLoading(true);
+      setErrorMsg(""); 
       const res = await apiLogin({ email, password });
       await saveToken(res.token);
       router.replace("/(tabs)/home" as any);
     } catch (e: any) {
-      Alert.alert("Login failed", e?.message || "Wrong email or password");
+      setErrorMsg(e?.message || "Incorrect email or password. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -43,30 +45,41 @@ export default function Login() {
 
           <Text style={s.label}>Email</Text>
           <TextInput
-            style={s.input}
+            style={[s.input, errorMsg ? s.inputError : null]} 
             placeholder="name@example.com"
             placeholderTextColor="#9CA3AF"
             autoCapitalize="none"
             keyboardType="email-address"
             value={email}
-            onChangeText={setEmail}
+            onChangeText={(text) => {
+              setEmail(text);
+              setErrorMsg(""); 
+            }}
           />
 
           <Text style={s.label}>Password</Text>
           <TextInput
-            style={s.input}
+            style={[s.input, errorMsg ? s.inputError : null]}
             placeholder="••••••••"
             placeholderTextColor="#9CA3AF"
             secureTextEntry
             value={password}
-            onChangeText={setPassword}
+            onChangeText={(text) => {
+              setPassword(text);
+              setErrorMsg(""); 
+            }}
           />
+
+          {errorMsg ? (
+            <Text style={s.errorText}>{errorMsg}</Text>
+          ) : null}
 
           <Pressable
             style={({ pressed }) => [
               s.primaryBtn,
               pressed && Platform.OS !== "web" ? { opacity: 0.9 } : null,
               loading ? { opacity: 0.7 } : null,
+              errorMsg ? { marginTop: 12 } : null, 
             ]}
             onPress={onLogin}
             disabled={loading}
@@ -140,6 +153,17 @@ const s = StyleSheet.create({
     color: "#20363A",
     fontSize: 15,
     fontWeight: "600",
+  },
+  inputError: {
+    borderColor: "#E53E3E", 
+    backgroundColor: "#FFF5F5",
+  },
+  errorText: {
+    color: "#E53E3E",
+    fontSize: 13,
+    fontWeight: "700",
+    marginTop: 12,
+    textAlign: "center",
   },
   primaryBtn: {
     marginTop: 24,
