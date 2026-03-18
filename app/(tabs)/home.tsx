@@ -159,6 +159,8 @@ export default function Home() {
       }
     } catch (err) {
       console.log("LOAD ERROR:", err);
+      await AsyncStorage.removeItem('userToken');
+      router.replace('/login');
     }
     setLoading(false);
   }
@@ -582,7 +584,16 @@ export default function Home() {
     return (
       <SafeAreaView style={styles.safe}>
         <View style={styles.center}>
-          <Text>No user data</Text>
+          <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: 20 }}>Session expired or user not found</Text>
+          <Pressable 
+            style={{ backgroundColor: colors.teal, paddingVertical: 12, paddingHorizontal: 24, borderRadius: 12 }}
+            onPress={async () => {
+              await AsyncStorage.removeItem('userToken');
+              router.replace('/login');
+            }}
+          >
+            <Text style={{ color: '#fff', fontWeight: '900' }}>Go to Login</Text>
+          </Pressable>
         </View>
       </SafeAreaView>
     );
