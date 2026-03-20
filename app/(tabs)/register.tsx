@@ -24,7 +24,11 @@ export default function Register() {
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
   const validateEmail = (value: string) => {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+    return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/.test(value);
+  };
+
+  const validateName = (value: string) => {
+    return /^[a-zA-Zа-яА-ЯёЁ\s-]+$/.test(value);
   };
 
   const validatePassword = (pw: string) => {
@@ -38,7 +42,6 @@ export default function Register() {
 
   const isValidDate = (year: number, month: number, day: number) => {
     const date = new Date(year, month - 1, day);
-
     return (
       date.getFullYear() === year &&
       date.getMonth() === month - 1 &&
@@ -51,10 +54,18 @@ export default function Register() {
 
     if (!firstName.trim()) {
       newErrors.firstName = "Please enter your first name";
+    } else if (firstName.trim().length < 2) {
+      newErrors.firstName = "First name must be at least 2 characters";
+    } else if (!validateName(firstName.trim())) {
+      newErrors.firstName = "Name can only contain letters";
     }
 
     if (!lastName.trim()) {
       newErrors.lastName = "Please enter your last name";
+    } else if (lastName.trim().length < 2) {
+      newErrors.lastName = "Last name must be at least 2 characters";
+    } else if (!validateName(lastName.trim())) {
+      newErrors.lastName = "Name can only contain letters";
     }
 
     if (!email.trim() || !validateEmail(email.trim())) {
@@ -67,27 +78,31 @@ export default function Register() {
     const currentYear = new Date().getFullYear();
 
     if (
-      !birthDay.trim() ||
-      !birthMonth.trim() ||
-      !birthYear.trim() ||
-      Number.isNaN(day) ||
-      Number.isNaN(month) ||
-      Number.isNaN(year)
+      !birthDay.trim() || !birthMonth.trim() || !birthYear.trim() ||
+      Number.isNaN(day) || Number.isNaN(month) || Number.isNaN(year)
     ) {
       newErrors.dateOfBirth = "Please enter your date of birth";
     } else if (day < 1 || day > 31) {
       newErrors.dateOfBirth = "Day must be between 1 and 31";
     } else if (month < 1 || month > 12) {
       newErrors.dateOfBirth = "Month must be between 1 and 12";
-    } else if (year < 1900 || year > currentYear) {
-      newErrors.dateOfBirth = "Please enter a valid year";
     } else if (!isValidDate(year, month, day)) {
       newErrors.dateOfBirth = "Please enter a valid date of birth";
     } else {
       const birthDate = new Date(year, month - 1, day);
       const today = new Date();
+      let age = today.getFullYear() - birthDate.getFullYear();
+      const m = today.getMonth() - birthDate.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+      }
+
       if (birthDate > today) {
         newErrors.dateOfBirth = "Date of birth cannot be in the future";
+      } else if (age < 16) {
+        newErrors.dateOfBirth = "You must be at least 16 years old to register";
+      } else if (age > 120) {
+        newErrors.dateOfBirth = "Please enter a valid year of birth";
       }
     }
 
@@ -133,7 +148,6 @@ export default function Register() {
       const weightNum = Number(weight);
       
       const normalizedEmail = email.trim().toLowerCase();
-      
       const computedRole: UserRole = normalizedEmail.endsWith("@doctor.dc") ? "doctor" : "patient";
 
       setLoading(true);
@@ -158,6 +172,11 @@ export default function Register() {
     }
   };
 
+  const handleNameInput = (text: string, setter: React.Dispatch<React.SetStateAction<string>>) => {
+    const filtered = text.replace(/[^a-zA-Zа-яА-ЯёЁ\s-]/g, "");
+    setter(filtered);
+  };
+
   return (
     <LinearGradient 
       colors={["#FFFFFF", "#DCEAEC"]} 
@@ -178,7 +197,10 @@ export default function Register() {
             placeholder="Your first name"
             placeholderTextColor="#9CA3AF"
             value={firstName}
-            onChangeText={setFirstName}
+            onChangeText={(text) => {
+              handleNameInput(text, setFirstName);
+              if (errors.firstName) setErrors(prev => ({ ...prev, firstName: "" }));
+            }}
           />
           {errors.firstName && <Text style={s.error}>{errors.firstName}</Text>}
 
@@ -188,7 +210,10 @@ export default function Register() {
             placeholder="Your last name"
             placeholderTextColor="#9CA3AF"
             value={lastName}
-            onChangeText={setLastName}
+            onChangeText={(text) => {
+              handleNameInput(text, setLastName);
+              if (errors.lastName) setErrors(prev => ({ ...prev, lastName: "" }));
+            }}
           />
           {errors.lastName && <Text style={s.error}>{errors.lastName}</Text>}
 
@@ -200,7 +225,10 @@ export default function Register() {
             autoCapitalize="none"
             keyboardType="email-address"
             value={email}
-            onChangeText={setEmail}
+            onChangeText={(text) => {
+              setEmail(text);
+              if (errors.email) setErrors(prev => ({ ...prev, email: "" }));
+            }}
           />
           {errors.email && <Text style={s.error}>{errors.email}</Text>}
 
@@ -213,7 +241,10 @@ export default function Register() {
               keyboardType="numeric"
               maxLength={2}
               value={birthDay}
-              onChangeText={setBirthDay}
+              onChangeText={(text) => {
+                setBirthDay(text);
+                if (errors.dateOfBirth) setErrors(prev => ({ ...prev, dateOfBirth: "" }));
+              }}
             />
 
             <TextInput
@@ -223,7 +254,10 @@ export default function Register() {
               keyboardType="numeric"
               maxLength={2}
               value={birthMonth}
-              onChangeText={setBirthMonth}
+              onChangeText={(text) => {
+                setBirthMonth(text);
+                if (errors.dateOfBirth) setErrors(prev => ({ ...prev, dateOfBirth: "" }));
+              }}
             />
 
             <TextInput
@@ -233,7 +267,10 @@ export default function Register() {
               keyboardType="numeric"
               maxLength={4}
               value={birthYear}
-              onChangeText={setBirthYear}
+              onChangeText={(text) => {
+                setBirthYear(text);
+                if (errors.dateOfBirth) setErrors(prev => ({ ...prev, dateOfBirth: "" }));
+              }}
             />
           </View>
           {errors.dateOfBirth && <Text style={s.error}>{errors.dateOfBirth}</Text>}
@@ -245,7 +282,10 @@ export default function Register() {
             placeholderTextColor="#9CA3AF"
             keyboardType="numeric"
             value={height}
-            onChangeText={setHeight}
+            onChangeText={(text) => {
+              setHeight(text);
+              if (errors.height) setErrors(prev => ({ ...prev, height: "" }));
+            }}
           />
           {errors.height && <Text style={s.error}>{errors.height}</Text>}
 
@@ -256,7 +296,10 @@ export default function Register() {
             placeholderTextColor="#9CA3AF"
             keyboardType="numeric"
             value={weight}
-            onChangeText={setWeight}
+            onChangeText={(text) => {
+              setWeight(text);
+              if (errors.weight) setErrors(prev => ({ ...prev, weight: "" }));
+            }}
           />
           {errors.weight && <Text style={s.error}>{errors.weight}</Text>}
 
@@ -267,7 +310,10 @@ export default function Register() {
             placeholderTextColor="#9CA3AF"
             secureTextEntry
             value={password}
-            onChangeText={setPassword}
+            onChangeText={(text) => {
+              setPassword(text);
+              if (errors.password) setErrors(prev => ({ ...prev, password: "" }));
+            }}
           />
           {errors.password && <Text style={s.error}>{errors.password}</Text>}
 
@@ -278,7 +324,10 @@ export default function Register() {
             placeholderTextColor="#9CA3AF"
             secureTextEntry
             value={confirmPassword}
-            onChangeText={setConfirmPassword}
+            onChangeText={(text) => {
+              setConfirmPassword(text);
+              if (errors.confirmPassword) setErrors(prev => ({ ...prev, confirmPassword: "" }));
+            }}
           />
           {errors.confirmPassword && <Text style={s.error}>{errors.confirmPassword}</Text>}
 
